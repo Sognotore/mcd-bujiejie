@@ -18,3 +18,4 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.ritual-cards>div{transform:none}}
 @media(max-width:760px){.hero-art{transform:none}.hero-art>img{width:124%;margin-left:-16%}}
 .main-grid>.payment-panel{width:100%;max-width:560px;justify-self:center;margin-top:25px}#ordered-items{padding:10px;background:#fffefa;border-radius:7px}#ordered-total{font-weight:700}
+.live-entry{display:flex;align-items:center;text-decoration:none;padding:10px 14px;border-radius:24px;font-size:12px;color:var(--red);font-weight:700}.live-entry:hover{background:#f9e5d8}@media(max-width:760px){.live-entry{font-size:10px;padding:8px 10px}}

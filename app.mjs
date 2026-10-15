@@ -69,10 +69,10 @@ $('#skip-budget').addEventListener('click',()=>{for(const b of document.querySel
 for(const button of document.querySelectorAll('[data-mode]'))button.addEventListener('click',()=>{if(state.mode!==button.dataset.mode)invalidate({mode:button.dataset.mode,store:null})});
 async function request(path,data,signal){
  if(publicDemo){
-  signal?.throwIfAborted();
+  if(signal?.aborted)throw new DOMException('Aborted','AbortError');
   if(path!=='/api/recommend'||data.mode!=='demo')throw new Error('公开体验版目前提供演示搭配。');
   const result=await recommend({catalog:demoCatalog,budget:data.budget,lockedIds:data.lockedIds,previousKey:data.previousKey});
-  signal?.throwIfAborted();
+  if(signal?.aborted)throw new DOMException('Aborted','AbortError');
   return {...result,meal:publicMeal(result.meal),mode:'demo',store:demoCatalog.store};
  }
  const response=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data),signal});
