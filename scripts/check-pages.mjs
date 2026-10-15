@@ -14,7 +14,7 @@ if(!url){
  server=http.createServer(async(req,res)=>{try{
   const prefix='/mcd-bujiejie/';const path=new URL(req.url,'http://localhost').pathname;
   const name=path.startsWith(prefix)?path.slice(prefix.length)||'index.html':'';
-  if(!allowed.includes(name)&&!/^assets\/(meal-hero|food-(burger|chicken|fish|fries|nuggets|pie|cola|tea|coffee|juice))\.webp$/.test(name)){res.writeHead(404);return res.end();}
+  if(!allowed.includes(name)&&!/^assets\/(brand-mark-v3|meal-hero|food-(burger|chicken|fish|fries|nuggets|pie|cola|tea|coffee|juice))\.webp$/.test(name)){res.writeHead(404);return res.end();}
   const type=name.endsWith('.webp')?'image/webp':name.endsWith('.mjs')?'text/javascript':name.endsWith('.css')?'text/css':'text/html';
   res.writeHead(200,{'content-type':type});res.end(await readFile(new URL(name,out)));
  }catch{res.writeHead(500);res.end();}});
@@ -25,6 +25,7 @@ try{
  const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[],apis=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(new URL(r.url()).pathname.includes('/api/'))apis.push(r.url());});
  await page.goto(url,{waitUntil:'networkidle',timeout:60000});
+ await expect(page.locator('.brand-mark img')).toBeVisible();assert(await page.locator('.brand-mark img').evaluate(img=>img.complete&&img.naturalWidth>0),'Brand icon failed to load');
  await expect(page.getByRole('button',{name:'公开体验版',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'实时点餐',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'预算 30 元',exact:true}).click();await page.getByRole('button',{name:'抽个好吃的',exact:true}).click();
  await expect(page.locator('#result')).toBeVisible();await expect(page.locator('.decision')).toBeHidden();assert(Number(await page.locator('#total').getAttribute('data-cents'))<=3000);

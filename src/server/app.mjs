@@ -42,7 +42,7 @@ export function createApp({liveProvider=new McdProvider(),publicOrigin=null,sess
     const result=await recommend({catalog,budget:input.budget,lockedIds:input.lockedIds,previousKey:input.previousKey,quote:input.mode==='live'?c=>provider.quote(c,catalog.store):undefined});
     return json(res,200,{...result,meal:publicMeal(result.meal),draftId:input.mode==='live'?orderService.draft(result.meal,catalog.store):null,mode:input.mode,store:catalog.store,takeWay:'到店取餐'});
    }
-   const asset=assets[path]??(/^\/assets\/(?:meal-hero|food-(?:burger|chicken|fish|fries|nuggets|pie|cola|tea|coffee|juice))\.webp$/.test(path)?[path.slice(1),'image/webp']:undefined);if((req.method==='GET'||req.method==='HEAD')&&asset){const content=await readFile(new URL('../../web/'+asset[0],import.meta.url));res.writeHead(200,{...headers,'content-type':asset[1]});return res.end(req.method==='HEAD'?undefined:content)}
+   const asset=assets[path]??(/^\/assets\/(?:brand-mark-v3|meal-hero|food-(?:burger|chicken|fish|fries|nuggets|pie|cola|tea|coffee|juice))\.webp$/.test(path)?[path.slice(1),'image/webp']:undefined);if((req.method==='GET'||req.method==='HEAD')&&asset){const content=await readFile(new URL('../../web/'+asset[0],import.meta.url));res.writeHead(200,{...headers,'content-type':asset[1]});return res.end(req.method==='HEAD'?undefined:content)}
    json(res,404,{error:{code:'NOT_FOUND',message:'页面不存在。'}});
   }catch(e){if(res.headersSent)return res.end();const safe=e instanceof MealError?e:new MealError('INTERNAL','暂时无法完成，请重试。',500);json(res,safe.status,{error:{code:safe.code,message:safe.message}})}
  });
