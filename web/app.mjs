@@ -69,10 +69,10 @@ $('#skip-budget').addEventListener('click',()=>{for(const b of document.querySel
 for(const button of document.querySelectorAll('[data-mode]'))button.addEventListener('click',()=>{if(state.mode!==button.dataset.mode)invalidate({mode:button.dataset.mode,store:null})});
 async function request(path,data,signal){
  if(publicDemo){
-  signal?.throwIfAborted();
+  if(signal?.aborted)throw new DOMException('Aborted','AbortError');
   if(path!=='/api/recommend'||data.mode!=='demo')throw new Error('公开体验版目前提供演示搭配。');
   const result=await recommend({catalog:demoCatalog,budget:data.budget,lockedIds:data.lockedIds,previousKey:data.previousKey});
-  signal?.throwIfAborted();
+  if(signal?.aborted)throw new DOMException('Aborted','AbortError');
   return {...result,meal:publicMeal(result.meal),mode:'demo',store:demoCatalog.store};
  }
  const response=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data),signal});
@@ -135,25 +135,40 @@ $('#checkout-start').addEventListener('click',async()=>{
   $('#checkout-items').textContent=[review.meal.name,...review.meal.items.map(i=>(i.included?'套餐内 ':'')+i.name+' ×1')].filter(Boolean).join('\n');
   $('#checkout-total').textContent='¥'+money(review.meal.totalCents);$('#checkout-price-note').textContent=review.priceChanged?'价格已更新，请以本次金额确认。':'已重新核对官方应付金额。';
   $('#checkout-takeway').replaceChildren();for(const t of review.takeWays){const option=document.createElement('option');option.value=t.code;option.textContent=t.name;$('#checkout-takeway').append(option);}
-  message($('#checkout-error'),'');$('#checkout-confirm').disabled=false;$('#checkout-cancel').disabled=false;$('#checkout-confirm').textContent='确认下单，去付款';$('#checkout-dialog').showModal();
+  message($('#checkout-error'),'');$('#recover-order').hidden=true;$('#checkout-takeway').disabled=false;$('#checkout-cancel').textContent='再想想';$('#checkout-confirm').disabled=false;$('#checkout-cancel').disabled=false;$('#checkout-confirm').textContent='确认下单，去付款';$('#checkout-dialog').showModal();
  }catch(e){if(e.code==='ORDER_UNCERTAIN')orderUncertain=true;state={...state,error:e.message};}
  finally{checkoutBusy=false;render();}
 });
 $('#checkout-cancel').addEventListener('click',()=>{if(!creatingOrder)$('#checkout-dialog').close();});
 $('#checkout-dialog').addEventListener('cancel',event=>{if(creatingOrder)event.preventDefault();});
 $('#checkout-confirm').addEventListener('click',async()=>{
- if(creatingOrder||!checkoutReview)return;creatingOrder=true;$('#checkout-confirm').disabled=true;$('#checkout-cancel').disabled=true;$('#checkout-confirm').textContent='正在提交，请勿重复操作…';message($('#checkout-error'),'');
+ if(creatingOrder||!checkoutReview)return;creatingOrder=true;$('#checkout-takeway').disabled=true;$('#checkout-confirm').disabled=true;$('#checkout-cancel').disabled=true;$('#checkout-confirm').textContent='正在提交，请勿重复操作…';message($('#checkout-error'),'');
  try{const receipt=await request('/api/checkout/confirm',{confirmationId:checkoutReview.confirmationId,takeWayCode:$('#checkout-takeway').value});lastReceipt={...receipt,draftId:checkoutReview.draftId};$('#checkout-dialog').close();render();$('#payment-panel').scrollIntoView({block:'center',behavior:'smooth'});}
- catch(e){message($('#checkout-error'),e.message);if(e.code==='ORDER_UNCERTAIN'||e.code==='ORDER_ALREADY_STARTED'){orderUncertain=true;state={...state,error:e.message};}$('#checkout-confirm').textContent='请返回重新核对';$('#checkout-cancel').textContent='返回菜单';}
- finally{creatingOrder=false;$('#checkout-cancel').disabled=false;render();}
+ catch(e){
+  const knownSafe=['CHECKOUT_CHANGED','CONFIRMATION_EXPIRED','INVALID_TAKE_WAY','NOT_CONNECTED'].includes(e.code);
+  const text=knownSafe?e.message:'订单提交结果尚未确认，请先查询提交结果或到麦当劳官方渠道查单，勿重复下单。';
+  message($('#checkout-error'),text);if(!knownSafe){orderUncertain=true;state={...state,error:text};$('#recover-order').hidden=false;await recoverOrder();}
+  $('#checkout-confirm').textContent='请返回重新核对';$('#checkout-cancel').textContent='返回菜单';
+ }
+ finally{creatingOrder=false;$('#checkout-takeway').disabled=false;$('#checkout-cancel').disabled=false;render();}
 });
+async function recoverOrder(){
+ try{const status=await(await fetch('/api/status')).json();const receipt=status.order;
+  if(receipt&&checkoutReview&&(receipt.confirmationId===checkoutReview.confirmationId||receipt.draftId===checkoutReview.draftId)){lastReceipt=receipt;orderUncertain=false;state={...state,error:''};$('#checkout-dialog').close();render();return true;}
+ }catch{}
+ return false;
+}
+$('#recover-order').addEventListener('click',async()=>{const button=$('#recover-order');button.disabled=true;try{if(!await recoverOrder())message($('#checkout-error'),'暂时未查到确认结果，请到麦当劳官方渠道查单，勿重复下单。');}finally{button.disabled=false;}});
 function renderReceipt(){
+ $('#order-title').textContent=lastReceipt.draftId&&lastReceipt.draftId===state.draftId?'这份餐单的官方订单':'最近一笔官方订单';
+ $('#ordered-store').textContent=lastReceipt.store?.name??'';
+ $('#ordered-items').textContent=[lastReceipt.meal?.name,...(lastReceipt.meal?.items??[]).map(i=>(i.included?'套餐内 ':'')+i.name+' ×1')].filter(Boolean).join(' · ');
+ $('#ordered-total').textContent=Number.isSafeInteger(lastReceipt.totalCents)?'该订单金额：¥'+money(lastReceipt.totalCents):'订单金额请在官方渠道核对';
  $('#order-number').textContent='订单号：'+lastReceipt.orderId;$('#order-status').textContent='当前状态：'+lastReceipt.status;
  $('#payment-link').hidden=!lastReceipt.paymentUrl;if(lastReceipt.paymentUrl)$('#payment-link').href=lastReceipt.paymentUrl;else $('#payment-link').removeAttribute('href');
- $('#payment-note').textContent=lastReceipt.paymentUrl?'请在官方页面完成付款。若页面要求扫码，可按指引使用麦当劳 App；付款后可返回查单。':'订单已创建，但付款入口暂未能确认。请到麦当劳官方渠道查单，勿重复创建。';
+ $('#payment-note').textContent=lastReceipt.amountConfirmed===false?'订单已创建，但金额与确认金额不一致或未能核对，付款入口已暂停。请到官方渠道查单，勿重复创建。':lastReceipt.paymentUrl?'请在官方页面完成付款。若页面要求扫码，可按指引使用麦当劳 App；付款后可返回查单。':'订单已创建，但付款入口暂未能确认。请到麦当劳官方渠道查单，勿重复创建。';
 }
 $('#refresh-order').addEventListener('click',async()=>{if(!lastReceipt)return;const button=$('#refresh-order');button.disabled=true;try{lastReceipt={...lastReceipt,...await request('/api/order/status',{receiptId:lastReceipt.receiptId})};renderReceipt();}catch(e){$('#order-status').textContent=e.message;}finally{button.disabled=false;}});
 
 render();
 if(!publicDemo){try{const status=await(await fetch('/api/status')).json();setConnection(status.live);if(status.order){lastReceipt=status.order;state={...state,mode:'live',meal:status.order.meal,store:status.order.store};showingResult=true;}render()}catch{state={...state,error:'本机服务连接失败，请刷新重试。'};render()}}
-
