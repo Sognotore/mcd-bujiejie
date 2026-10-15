@@ -8,3 +8,4 @@ playwright-report/
 .superpowers/
 .DS_Store
 release/
+dist/

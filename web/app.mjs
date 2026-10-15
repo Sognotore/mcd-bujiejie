@@ -1,4 +1,6 @@
-import {parseBudget} from './engine.mjs';
+import {parseBudget,recommend,publicMeal} from './engine.mjs';
+import {demoCatalog} from './demo-data.mjs';
+const publicDemo=document.documentElement.dataset.runtime==='public-demo';
 import {initialState,changeCondition,applyResponse,applyFailure} from './state.mjs';
 import {trayArt,foodArt,lockIcon} from './art.mjs';
 const $=selector=>document.querySelector(selector);
@@ -7,6 +9,7 @@ const money=cents=>(cents/100).toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/
 let state=initialState();let controller;let selectedStore=null;let stores=[];let configured=false;let searching=false;
 try{const saved=JSON.parse(localStorage.getItem('mcd-store'));if(saved&&/^\d+$/.test(saved.id)&&typeof saved.name==='string')selectedStore={id:saved.id,name:saved.name}}catch{}
 $('#tray-art').innerHTML=trayArt();
+if(publicDemo){$('[data-mode=live]').hidden=true;$('[data-mode=demo]').textContent='公开体验版';}
 function message(el,text){el.textContent=text;el.hidden=!text}
 function invalidate(patch){controller?.abort();state=changeCondition(state,patch);$('#copy-fallback').hidden=true;$('#copy-status').textContent='';render()}
 function render(){
@@ -51,6 +54,13 @@ $('#custom-budget').addEventListener('input',()=>{for(const b of document.queryS
 $('#skip-budget').addEventListener('click',()=>{for(const b of document.querySelectorAll('[data-budget]'))b.setAttribute('aria-pressed','false');$('#custom-budget').value='';$('#skip-budget').setAttribute('aria-pressed','true');invalidate({budget:''})});
 for(const button of document.querySelectorAll('[data-mode]'))button.addEventListener('click',()=>{if(state.mode!==button.dataset.mode)invalidate({mode:button.dataset.mode,store:null})});
 async function request(path,data,signal){
+ if(publicDemo){
+  signal?.throwIfAborted();
+  if(path!=='/api/recommend'||data.mode!=='demo')throw new Error('公开体验版目前提供演示搭配。');
+  const result=await recommend({catalog:demoCatalog,budget:data.budget,lockedIds:data.lockedIds,previousKey:data.previousKey});
+  signal?.throwIfAborted();
+  return {...result,meal:publicMeal(result.meal),mode:'demo',store:demoCatalog.store};
+ }
  const response=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data),signal});
  const result=await response.json();if(!response.ok)throw new Error(result.error?.message??'暂时无法完成，请重试。');return result;
 }
@@ -87,4 +97,4 @@ $('#copy').addEventListener('click',async()=>{
  try{await navigator.clipboard.writeText(text);$('#copy-status').textContent='清单已复制。'}catch{$('#copy-text').value=text;$('#copy-fallback').hidden=false;$('#copy-text').focus();$('#copy-text').select();$('#copy-status').textContent='可以手动复制下方清单。'}
 });
 render();
-try{const status=await(await fetch('/api/status')).json();configured=status.live.configured;render()}catch{state={...state,error:'本机服务连接失败，请刷新重试。'};render()}
+if(!publicDemo){try{const status=await(await fetch('/api/status')).json();configured=status.live.configured;render()}catch{state={...state,error:'本机服务连接失败，请刷新重试。'};render()}}

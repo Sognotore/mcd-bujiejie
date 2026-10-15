@@ -12,3 +12,5 @@
 审查记录：套餐复制遗漏按其可能导致拆单和价格不符的实际影响一并修复；无待处理重要问题。官方字段与视觉均由主执行者实测，范围以 verification.md 为准。
 
 公开发布：Sognotore/mcd-bujiejie 已创建并推送；官方报名 Issue #742 已提交，校验回执待确认。
+
+公开分享：新增浏览器内运行的静态演示构建，已通过子路径、预算、锁定、重抽、手机布局、无后端请求及凭证扫描验证；GitHub Pages 部署 built；正式公网地址匿名 HTTP 200，浏览器重复验证通过。入口 https://sognotore.github.io/mcd-bujiejie/ 。

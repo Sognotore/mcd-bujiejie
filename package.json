@@ -13,7 +13,9 @@
     "test:ui": "playwright test",
     "mcp:inspect": "node --env-file-if-exists=.env scripts/inspect-mcp.mjs",
     "skill:sync": "node scripts/sync-skill.mjs",
-    "check": "npm test && npm run test:ui"
+    "check": "npm test && npm run test:ui",
+    "build:pages": "node scripts/build-pages.mjs",
+    "check:pages": "node scripts/check-pages.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
