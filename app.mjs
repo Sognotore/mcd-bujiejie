@@ -29,7 +29,7 @@ function render(){
  $('#store-form').hidden=!configured;
  const orderAvailable=state.mode==='live'&&canOrder&&Boolean(state.draftId);
  $('#checkout-start').hidden=!orderAvailable;$('#checkout-start').disabled=state.busy||checkoutBusy||orderUncertain||Boolean(lastReceipt&&lastReceipt.draftId===state.draftId);
- $('#checkout-start').textContent=checkoutBusy?'核对最新价格…':orderUncertain?'请先到官方渠道核对订单':'就吃这份，去下单 →';
+ $('#checkout-start').textContent=checkoutBusy?'核对最新价格…':orderUncertain?'请先到官方渠道核对订单':'就吃这份，去下单';
  $('#result').classList.toggle('has-checkout',orderAvailable);
  $('#payment-panel').hidden=!lastReceipt;
  if(lastReceipt)renderReceipt();
@@ -104,7 +104,7 @@ $('#store-form').addEventListener('submit',async event=>{
   for(const s of stores){const option=document.createElement('option');option.value=s.id;option.textContent=`${s.name} · ${s.distance??'--'}米 · ${s.address}`;$('#store-select').append(option)}
   $('#store-label').hidden=false;message($('#message'),stores.length?'':'附近暂时没有可用门店，可以更换地标试试。');
  }catch(e){if(state.mode==='live'&&state.revision===modeRevision){state={...state,error:e.message};render()}}
- finally{searching=false;submit.disabled=false;submit.textContent='查找门店 →'}
+ finally{searching=false;submit.disabled=false;submit.textContent='查找门店'}
 });
 $('#store-select').addEventListener('change',()=>{
  selectedStore=stores.find(x=>x.id===$('#store-select').value)??null;
