@@ -43,3 +43,14 @@ test('合法的小数预算不能因浮点误差被拒绝',async({page})=>{
  await page.getByLabel('自定义预算').fill('0.29');await page.getByRole('button',{name:'帮我搭一餐',exact:true}).click();
  await expect(page.locator('#error')).toContainText('当前预算');
 });
+
+test('复制套餐时保留套餐名称及套餐内关系',async({page})=>{
+ await page.route('**/api/status',r=>r.fulfill({json:{live:{configured:true}}}));
+ await page.route('**/api/stores',r=>r.fulfill({json:{stores:[{id:'1000',name:'测试门店',address:'测试路',distance:1}]}}));
+ const items=['main','side','drink'].map((role,i)=>({id:String(i),name:['测试主食','测试小食','测试饮品'][i],role,priceCents:0,included:true,variantId:'included'}));
+ await page.route('**/api/recommend',r=>r.fulfill({json:{status:'ok',mode:'live',store:{id:'1000',name:'测试门店'},meal:{key:'set',kind:'bundle',name:'测试三件套',lockable:false,totalCents:3000,discountCents:0,feesCents:0,quotedAt:Date.now(),budgetCents:null,items}}}));
+ await page.reload();await page.getByRole('button',{name:'实时菜单',exact:true}).click();await page.getByLabel('城市',{exact:true}).fill('测试市');await page.getByLabel('附近位置',{exact:true}).fill('测试路');await page.getByRole('button',{name:/查找门店/}).click();await page.getByRole('combobox',{name:'选择取餐门店',exact:true}).selectOption('1000');
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:()=>Promise.reject(new Error('denied'))},configurable:true}));
+ await page.getByRole('button',{name:'帮我搭一餐',exact:true}).click();await expect(page.locator('#result')).toBeVisible();await page.getByRole('button',{name:'复制清单',exact:true}).click();
+ await expect(page.locator('#copy-text')).toHaveValue(/套餐：测试三件套/);await expect(page.locator('#copy-text')).toHaveValue(/套餐内/);
+});

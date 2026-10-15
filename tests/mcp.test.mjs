@@ -49,3 +49,28 @@ test('套餐非默认的零差价选项可以参与随机，不触发非法零�
  rounds[2].choices.push({code:'d',name:'另一杯',isDefault:0,diffPrice:'+ ¥0'});
  assert.equal(expandBundle({code:'set',priceCents:2500},{name:'套餐',rounds}).length,2);
 });
+
+
+test('锁定后默认特调变化不能静默换成新配置',async()=>{
+ const {recommend}=await import('../src/domain/engine.mjs');
+ const e={code:'drink',role:'drink',priceCents:500};
+ const detail=key=>({code:'drink',name:'饮料',rounds:[],modification:{items:[{values:[{code:'ice',selectedQuantity:1,selectedKey:key}]}]}});
+ const old=normalizeSingle(e,detail('less-ice'));const fresh=normalizeSingle(e,detail('normal-ice'));
+ assert.notEqual(old.id,fresh.id);assert.notEqual(old.variantId,fresh.variantId);
+ const item=(id,role)=>({id,name:id,role,priceCents:500,available:true,variantId:'fixed'});
+ await assert.rejects(()=>recommend({catalog:{items:[item('main','main'),item('side','side'),fresh]},budget:null,lockedIds:[old.id]}),{code:'LOCK_UNAVAILABLE'});
+});
+test('工具列表通知后，下一次调用必须重新校验 schema',async()=>{
+ let handler;let changed=false;let calls=0;
+ const c={...client,setNotificationHandler:(_schema,fn)=>{handler=fn},listTools:async()=>({tools:changed?schemas.map(x=>({...x,inputSchema:{...x.inputSchema,required:['storeCode','newField']}})):schemas}),callTool:async()=>{calls++;return structured({price:100})}};
+ const g=new McpGateway({token:'test',client:c,expectedHash:schemaFingerprint(schemas)});
+ await g.call('query-meals',{storeCode:'1000'});assert.equal(typeof handler,'function');changed=true;handler();
+ await assert.rejects(()=>g.call('query-meals',{storeCode:'1000'}),{code:'SCHEMA_CHANGED'});assert.equal(calls,1);
+});
+test('无通知的 schema 变化在短期有效期后也会被发现',async()=>{
+ let time=1000,changed=false,calls=0;
+ const c={...client,listTools:async()=>({tools:changed?schemas.map(x=>({...x,inputSchema:{type:'object',properties:{changed:{type:'boolean'}}}})):schemas}),callTool:async()=>{calls++;return structured({price:100})}};
+ const g=new McpGateway({token:'test',client:c,expectedHash:schemaFingerprint(schemas),now:()=>time,schemaTtlMs:5000});
+ await g.call('query-meals',{storeCode:'1000'});changed=true;time+=5001;
+ await assert.rejects(()=>g.call('query-meals',{storeCode:'1000'}),{code:'SCHEMA_CHANGED'});assert.equal(calls,1);
+});

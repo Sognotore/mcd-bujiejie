@@ -8,7 +8,7 @@
 
 `catalog` 含 `source`（live 或 demo）、`items`、可选的 `bundles`。
 
-每个单品：`id`、官方 `name`、`role`（main/side/drink）、整数分 `priceCents`、`variantId`、明确的 `available=true`。`orderLine` 可携带官方商品及规格参数，供调用 `calculate-price` 使用。
+每个单品：`id`、官方 `name`、`role`（main/side/drink）、整数分 `priceCents`、`variantId`、明确的 `available=true`。`orderLine` 应携带官方商品及规格、数量与默认特调参数，供调用 `calculate-price` 使用。脚本会根据这些精确参数生成稳定配置快照 ID；重抽时原样传回输出的 id。配置变化时旧锁定 ID 失效，不能用相同商品编码静默换成新默认特调。
 
 每个完整套餐：`id`、`name`、`available=true`、整个套餐的整数分 `priceCents`、`items`（三个不同角色的组成项）、`orderLine`。套餐内无独立售价的组成项设 `included=true`、`priceCents=0`，不得向用户展示为免费。套餐整体可替换，不能把固定套餐子项当可独立锁定的单品。
 

@@ -83,7 +83,7 @@ $('#store-select').addEventListener('change',()=>{
 });
 $('#copy').addEventListener('click',async()=>{
  const meal=state.meal;if(!meal)return;const live=state.mode==='live';
- const text=[`麦麦不纠结 · ${live?'实时搭配':'演示搭配（非实际售价）'}`,live?`${state.store?.name??selectedStore?.name} · 到店取餐`:'餐品与价格仅供体验',...meal.items.map(x=>`${roleNames[x.role]}：${x.name} ×1`),`${live?'试算应付':'演示合计'}：¥${money(meal.totalCents)}`,live?`试算时间：${new Date(meal.quotedAt).toLocaleString('zh-CN')}。点餐时以官方实际价格为准。`:''].filter(Boolean).join('\n');
+ const text=[`麦麦不纠结 · ${live?'实时搭配':'演示搭配（非实际售价）'}`,live?`${state.store?.name??selectedStore?.name} · 到店取餐`:'餐品与价格仅供体验',...(meal.kind==='bundle'?[`套餐：${meal.name} ×1（以下为套餐内组成，请按套餐点单）`]:[]),...meal.items.map(x=>`${x.included?'套餐内 ':''}${roleNames[x.role]}：${x.name} ×1`),`${live?'试算应付':'演示合计'}：¥${money(meal.totalCents)}`,live?`试算时间：${new Date(meal.quotedAt).toLocaleString('zh-CN')}。点餐时以官方实际价格为准。`:''].filter(Boolean).join('\n');
  try{await navigator.clipboard.writeText(text);$('#copy-status').textContent='清单已复制。'}catch{$('#copy-text').value=text;$('#copy-fallback').hidden=false;$('#copy-text').focus();$('#copy-text').select();$('#copy-status').textContent='可以手动复制下方清单。'}
 });
 render();

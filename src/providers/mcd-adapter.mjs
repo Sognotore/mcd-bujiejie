@@ -1,6 +1,6 @@
 // Fields verified against https://open.mcd.cn/mcp/doc and authorized live calls on 2026-10-15.
 import {MealError,parseBudget,buildCandidates,validateQuote} from '../domain/engine.mjs';
-import {McpGateway} from './mcp.mjs';import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {McpGateway} from './mcp.mjs';import {configurationSnapshot} from '../domain/identity.mjs';import {readFile,writeFile,mkdir} from 'node:fs/promises';
 const invalid=()=>{throw new MealError('INVALID_RESPONSE','餐品结构无法确认，请重试或更换门店。',502)};
 export function defaultModification(detail){
  const values=[];
@@ -42,7 +42,7 @@ export function extractProducts(menu){
 export function normalizeSingle(entry,detail){
  if(detail.code!==entry.code||!detail.name||!Array.isArray(detail.rounds))invalid();
  if(detail.rounds.length)return null; // Multiple-choice products are handled only when all roles can be confirmed.
- return {id:entry.code,name:nameFor(detail),role:entry.role,priceCents:entry.priceCents,variantId:'default',available:true,art:artFor(entry.role,detail.name),orderLine:{productCode:entry.code,quantity:1,...withMod(detail)}};
+ return configurationSnapshot({id:entry.code,name:nameFor(detail),role:entry.role,priceCents:entry.priceCents,variantId:'default',available:true,art:artFor(entry.role,detail.name),orderLine:{productCode:entry.code,quantity:1,...withMod(detail)}});
 }
 const roleForRound=name=>/主食|汉堡|肉堡/.test(name)?'main':/小食|薯条/.test(name)?'side':/饮料|饮品/.test(name)?'drink':null;
 function diffCents(choice){
@@ -79,6 +79,7 @@ export class McdProvider{
  constructor({gateway=new McpGateway(),cacheDirectory=new URL('../../.local/',import.meta.url)}={}){this.gateway=gateway;this.cacheDirectory=cacheDirectory;this.stores=new Map();this.catalogCache=new Map()}
  status(){return {configured:Boolean(this.gateway.token)}}
  async findStores({city,keyword}){
+  await this.gateway.verifySchemas({force:true});
   if(typeof city!=='string'||!city.trim()||city.length>60||typeof keyword!=='string'||!keyword.trim()||keyword.length>120)throw new MealError('INVALID_LOCATION','请输入城市和附近的地标或路名。');
   const data=await this.gateway.call('query-nearby-stores',{searchType:2,beType:1,city:city.trim(),keyword:keyword.trim()});
   if(!Array.isArray(data))invalid();
@@ -92,6 +93,7 @@ export class McdProvider{
   const store=this.stores.get(id);if(!store)throw new MealError('SELECT_STORE','请先搜索并选择一家门店。');return store;
  }
  async catalog(storeInput){
+  await this.gateway.verifySchemas({force:true});
   const store=await this.knownStore(storeInput?.id);const cached=this.catalogCache.get(store.id);
   if(cached&&Date.now()-cached.at<60000)return cached.catalog;
   const args={storeCode:store.id,orderType:1,beType:1};
@@ -106,6 +108,7 @@ export class McdProvider{
   const catalog={items,bundles,store,source:'live'};buildCandidates(catalog);this.catalogCache.set(store.id,{at:Date.now(),catalog});return catalog;
  }
  async quote(candidate,store){
+  await this.gateway.verifySchemas({force:true});
   let lines=candidate.kind==='bundle'?[candidate.orderLine]:candidate.items.map(x=>x.orderLine);
   lines=lines.map((line,i)=>{const product=candidate.kind==='bundle'?candidate:candidate.items[i];return product.coupon?{...line,couponId:product.coupon.couponId,couponCode:product.coupon.couponCode}:line});
   const data=await this.gateway.call('calculate-price',{storeCode:store.id,orderType:1,beType:1,items:lines,needTableware:false});
