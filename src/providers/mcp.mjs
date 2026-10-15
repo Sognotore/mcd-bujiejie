@@ -5,9 +5,10 @@ import Ajv from 'ajv';import Ajv2020 from 'ajv/dist/2020.js';
 import {createHash} from 'node:crypto';import {readFileSync} from 'node:fs';
 import {MealError} from '../domain/engine.mjs';
 export const ALLOWED_TOOLS=['query-nearby-stores','query-meals','query-meal-detail','query-store-coupons','calculate-price'];
+const orderPinned=JSON.parse(readFileSync(new URL('./order-tool-schemas.json',import.meta.url),'utf8'));
 const pinned=JSON.parse(readFileSync(new URL('./tool-schemas.json',import.meta.url),'utf8'));
 const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).filter(k=>!['description','title'].includes(k)).sort().map(k=>[k,canonical(v[k])])):v;
-export const schemaFingerprint=tools=>createHash('sha256').update(JSON.stringify(canonical(tools.filter(x=>ALLOWED_TOOLS.includes(x.name)).map(({name,inputSchema})=>({name,inputSchema})).sort((a,b)=>a.name.localeCompare(b.name))))).digest('hex');
+export const schemaFingerprint=(tools,allowedTools=ALLOWED_TOOLS)=>createHash('sha256').update(JSON.stringify(canonical(tools.filter(x=>allowedTools.includes(x.name)).map(({name,inputSchema})=>({name,inputSchema})).sort((a,b)=>a.name.localeCompare(b.name))))).digest('hex');
 export const EXPECTED_SCHEMA_HASH=schemaFingerprint(pinned);
 export function mcpError(e){
  if(e instanceof MealError)return e;
@@ -29,7 +30,7 @@ export function unpack(result){
  return data.data;
 }
 export class McpGateway{
- constructor({token=process.env.MCD_MCP_TOKEN,client,expectedHash=EXPECTED_SCHEMA_HASH,log=()=>{},schemaTtlMs=5000,now=Date.now}={}){this.token=token;this.client=client;this.injected=Boolean(client);this.expectedHash=expectedHash;this.log=log;this.validators=new Map();this.schemaTtlMs=schemaTtlMs;this.now=now;this.schemaCheckedAt=0;this.schemaDirty=true;this.schemaEpoch=0}
+ constructor({token=process.env.MCD_MCP_TOKEN,client,expectedHash,ordering=false,log=()=>{},schemaTtlMs=5000,now=Date.now}={}){this.token=token;this.client=client;this.injected=Boolean(client);this.allowedTools=ordering?[...ALLOWED_TOOLS,'create-order','query-order']:ALLOWED_TOOLS;this.expectedHash=expectedHash??schemaFingerprint(ordering?[...pinned,...orderPinned]:pinned,this.allowedTools);this.log=log;this.validators=new Map();this.schemaTtlMs=schemaTtlMs;this.now=now;this.schemaCheckedAt=0;this.schemaDirty=true;this.schemaEpoch=0}
  async connect(){
   if(!this.token)throw new MealError('NOT_CONNECTED','尚未配置实时连接，请先体验演示。',503);
   if(this.connecting)return this.connecting;
@@ -48,8 +49,8 @@ export class McpGateway{
  async readSchemas(){
   const epoch=this.schemaEpoch;const tools=[];let cursor;let pages=0;
   do{if(++pages>20)throw new MealError('INVALID_SCHEMA','工具清单无法识别。',502);const result=await this.client.listTools(cursor?{cursor}:undefined,{timeout:15000});tools.push(...result.tools);cursor=result.nextCursor}while(cursor);
-  const selected=tools.filter(x=>ALLOWED_TOOLS.includes(x.name));
-  if(selected.length!==ALLOWED_TOOLS.length||schemaFingerprint(selected)!==this.expectedHash){this.validators.clear();this.schemaDirty=true;this.schemaEpoch++;throw new MealError('SCHEMA_CHANGED','官方接口定义已变化，请核验并更新连接。',502)}
+  const selected=tools.filter(x=>this.allowedTools.includes(x.name));
+  if(selected.length!==this.allowedTools.length||schemaFingerprint(selected,this.allowedTools)!==this.expectedHash){this.validators.clear();this.schemaDirty=true;this.schemaEpoch++;throw new MealError('SCHEMA_CHANGED','官方接口定义已变化，请核验并更新连接。',502)}
   const validators=new Map();
   for(const tool of selected){const C=String(tool.inputSchema.$schema??'').includes('2020')?Ajv2020:Ajv;const ajv=new C({strict:false,validateFormats:false});validators.set(tool.name,ajv.compile(tool.inputSchema))}
   this.validators=validators;this.schemaCheckedAt=this.now();this.schemaDirty=epoch!==this.schemaEpoch;this.tools=selected;return selected;
@@ -63,7 +64,7 @@ export class McpGateway{
   }
  }
  async call(name,args){
-  if(!ALLOWED_TOOLS.includes(name))throw new MealError('TOOL_DENIED','此功能不支持该操作。',403);
+  if(!this.allowedTools.includes(name))throw new MealError('TOOL_DENIED','此功能不支持该操作。',403);
   await this.verifySchemas();
   if(!this.validators.get(name)?.(args))throw new MealError('INVALID_TOOL_ARGUMENTS','查询条件与官方接口不兼容。',400);
   const started=Date.now();const epoch=this.schemaEpoch;

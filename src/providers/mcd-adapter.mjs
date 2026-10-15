@@ -77,7 +77,7 @@ export function priceToQuote(data,lines){
 async function parallelMap(items,fn){let cursor=0;const output=[];await Promise.all(Array.from({length:Math.min(4,items.length)},async()=>{while(cursor<items.length){const i=cursor++;output[i]=await fn(items[i])}}));return output}
 export class McdProvider{
  constructor({gateway=new McpGateway(),cacheDirectory=new URL('../../.local/',import.meta.url)}={}){this.gateway=gateway;this.cacheDirectory=cacheDirectory;this.stores=new Map();this.catalogCache=new Map()}
- status(){return {configured:Boolean(this.gateway.token)}}
+ status(){return {configured:Boolean(this.gateway.token),ordering:Boolean(this.gateway.allowedTools?.includes('create-order'))}}
  async findStores({city,keyword}){
   await this.gateway.verifySchemas({force:true});
   if(typeof city!=='string'||!city.trim()||city.length>60||typeof keyword!=='string'||!keyword.trim()||keyword.length>120)throw new MealError('INVALID_LOCATION','请输入城市和附近的地标或路名。');
@@ -85,11 +85,11 @@ export class McdProvider{
   if(!Array.isArray(data))invalid();
   const stores=data.filter(x=>x.businessStatus===true&&/^\d+$/.test(x.storeCode)&&typeof x.storeName==='string').map(x=>({id:x.storeCode,name:x.storeName,address:x.address??'',distance:x.distance??null}));
   for(const s of stores)this.stores.set(s.id,{id:s.id,name:s.name});
-  await mkdir(this.cacheDirectory,{recursive:true});await writeFile(new URL('known-stores.json',this.cacheDirectory),JSON.stringify([...this.stores.values()]),{mode:0o600});
+  if(this.cacheDirectory){await mkdir(this.cacheDirectory,{recursive:true});await writeFile(new URL('known-stores.json',this.cacheDirectory),JSON.stringify([...this.stores.values()]),{mode:0o600});}
   return stores;
  }
  async knownStore(id){
-  if(!this.stores.size){try{for(const s of JSON.parse(await readFile(new URL('known-stores.json',this.cacheDirectory),'utf8')))if(/^\d+$/.test(s.id)&&typeof s.name==='string')this.stores.set(s.id,{id:s.id,name:s.name})}catch{}}
+  if(this.cacheDirectory&&!this.stores.size){try{for(const s of JSON.parse(await readFile(new URL('known-stores.json',this.cacheDirectory),'utf8')))if(/^\d+$/.test(s.id)&&typeof s.name==='string')this.stores.set(s.id,{id:s.id,name:s.name})}catch{}}
   const store=this.stores.get(id);if(!store)throw new MealError('SELECT_STORE','请先搜索并选择一家门店。');return store;
  }
  async catalog(storeInput){
@@ -107,12 +107,17 @@ export class McdProvider{
   for(const product of all){const matches=coupons.filter(c=>(c.products??[]).some(p=>p.productCode===product.orderLine.productCode));if(matches.length)product.coupon=matches[0]}
   const catalog={items,bundles,store,source:'live'};buildCandidates(catalog);this.catalogCache.set(store.id,{at:Date.now(),catalog});return catalog;
  }
- async quote(candidate,store){
+ async quoteDetails(candidate,store){
   await this.gateway.verifySchemas({force:true});
   let lines=candidate.kind==='bundle'?[candidate.orderLine]:candidate.items.map(x=>x.orderLine);
   lines=lines.map((line,i)=>{const product=candidate.kind==='bundle'?candidate:candidate.items[i];return product.coupon?{...line,couponId:product.coupon.couponId,couponCode:product.coupon.couponCode}:line});
   const data=await this.gateway.call('calculate-price',{storeCode:store.id,orderType:1,beType:1,items:lines,needTableware:false});
-  return priceToQuote(data,lines);
+  const quote=priceToQuote(data,lines);
+  const takeWays=(data.takeWayList??[]).filter(x=>typeof x.code==='string'&&x.code&&typeof x.title==='string'&&x.title).map(({code,title})=>({code,name:title}));
+  return {quote,lines,takeWays};
  }
+ async quote(candidate,store){return (await this.quoteDetails(candidate,store)).quote;}
+ async createOrder({store,lines,takeWayCode}){return this.gateway.call('create-order',{storeCode:store.id,orderType:1,beType:1,items:lines,takeWayCode,needTableware:false});}
+ async queryOrder(orderId){return this.gateway.call('query-order',{orderId});}
  async close(){await this.gateway.close()}
 }
