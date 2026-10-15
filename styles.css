@@ -17,3 +17,4 @@
 @media(max-width:360px){.intro h1{font-size:33px}.intro{min-height:190px}.hero-caption{font-size:6px}.page-shell{padding:0 16px}.mode-switch button{padding:8px}.brand{font-size:16px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.ritual-cards>div{transform:none}}
 @media(max-width:760px){.hero-art{transform:none}.hero-art>img{width:124%;margin-left:-16%}}
+.main-grid>.payment-panel{width:100%;max-width:560px;justify-self:center;margin-top:25px}#ordered-items{padding:10px;background:#fffefa;border-radius:7px}#ordered-total{font-weight:700}
