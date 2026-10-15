@@ -6,13 +6,19 @@ import {trayArt,foodArt,lockIcon} from './art.mjs';
 const $=selector=>document.querySelector(selector);
 const roleNames={main:'主食',side:'小食',drink:'饮品'};
 const money=cents=>(cents/100).toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1');
-let state=initialState();let controller;let selectedStore=null;let stores=[];let configured=false;let searching=false;
+let state=initialState();let controller;let selectedStore=null;let stores=[];let configured=false;let searching=false;let showingResult=false;
 try{const saved=JSON.parse(localStorage.getItem('mcd-store'));if(saved&&/^\d+$/.test(saved.id)&&typeof saved.name==='string')selectedStore={id:saved.id,name:saved.name}}catch{}
 $('#tray-art').innerHTML=trayArt();
 if(publicDemo){$('[data-mode=live]').hidden=true;$('[data-mode=demo]').textContent='公开体验版';}
 function message(el,text){el.textContent=text;el.hidden=!text}
-function invalidate(patch){controller?.abort();state=changeCondition(state,patch);$('#copy-fallback').hidden=true;$('#copy-status').textContent='';render()}
+function invalidate(patch){showingResult=false;controller?.abort();state=changeCondition(state,patch);$('#copy-fallback').hidden=true;$('#copy-status').textContent='';render()}
 function render(){
+ const resultVisible=showingResult&&Boolean(state.meal);
+ $('.main-grid').classList.toggle('has-result',resultVisible);
+ $('.decision').hidden=resultVisible;
+ $('.meal-stage').hidden=Boolean(state.meal)&&!resultVisible;
+ const actionTarget=$(resultVisible?'#result-actions':'#setup-actions');
+ if($('#action-area').parentElement!==actionTarget)actionTarget.append($('#action-area'));
  const allLocked=state.locks.length===3;
  for(const button of document.querySelectorAll('[data-mode]'))button.setAttribute('aria-pressed',String(button.dataset.mode===state.mode));
  $('#live-panel').hidden=state.mode!=='live';
@@ -71,9 +77,14 @@ $('#draw').addEventListener('click',async()=>{
  const revision=state.revision;controller=new AbortController();state={...state,busy:true,error:'',message:''};$('#copy-fallback').hidden=true;$('#copy-status').textContent='';render();
  try{
   const result=await request('/api/recommend',{mode:state.mode,budget:state.budget,store:selectedStore,lockedIds:state.locks,previousKey:state.meal?.key??null},controller.signal);
-  state=applyResponse(state,revision,result);render();
+  const current=state.revision===revision;
+  state=applyResponse(state,revision,result);
+  if(current&&state.meal)showingResult=true;
+  render();
+  if(current&&showingResult){$('#result-title').focus({preventScroll:true});window.scrollTo({top:0,behavior:'instant'});}
  }catch(e){if(e.name==='AbortError')return;state=applyFailure(state,revision,e.message);render()}
 });
+$('#edit-budget').addEventListener('click',()=>{invalidate({});$('#budget-title').focus({preventScroll:true});window.scrollTo({top:0,behavior:'instant'});});
 $('#store-form').addEventListener('submit',async event=>{
  event.preventDefault();if(searching)return;searching=true;const modeRevision=state.revision;const submit=$('#store-form button');submit.disabled=true;submit.textContent='查找中…';
  try{
