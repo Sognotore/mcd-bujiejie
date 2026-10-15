@@ -12,3 +12,10 @@ test('拒绝非法预算、模式、跨站、非 JSON、大请求与未知路由
  for(const path of ['/.env','/package.json','/api/tools','/%2e%2e/.env']) assert.equal((await fetch(url+path)).status,404);
 }));
 test('状态与错误不包含凭证或内部堆栈',()=>serve(async url=>{const data=await (await fetch(url+'/api/status')).json();assert.deepEqual(data.live,{configured:false});const text=await (await post(url+'/api/recommend',{mode:'demo',budget:{}})).text();assert.ok(!text.includes('stack'));assert.ok(!text.includes('MCD_MCP_TOKEN'))}));
+test('餐型参数通过服务端校验，客户端伪造营养值不能改变结果',()=>serve(async url=>{
+ const options=await (await post(url+'/api/meal-styles',{mode:'demo'})).json();assert.deepEqual(options.mealStyles.ids,['joy','lean','fit']);
+ const res=await post(url+'/api/recommend',{mode:'demo',mealStyle:'fit',budget:'30',nutrition:{kcal:1,proteinG:999}});assert.equal(res.status,200);
+ const data=await res.json();assert.equal(data.meal.mealStyle,'fit');assert(data.meal.nutrition.kcal>=550&&data.meal.nutrition.kcal<=800);assert(data.meal.nutrition.proteinG>=35);assert(data.meal.totalCents<=3000);
+ const invalid=await post(url+'/api/recommend',{mode:'demo',mealStyle:'unknown'});assert.equal(invalid.status,400);assert.equal((await invalid.json()).error.code,'INVALID_MEAL_STYLE');
+ for(const path of ['/nutrition.mjs','/nutrition-data.mjs','/assets/food-corn.webp'])assert.equal((await fetch(url+path)).status,200);
+}));

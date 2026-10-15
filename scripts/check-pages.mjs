@@ -3,7 +3,7 @@ import http from 'node:http';
 import {readFile,readdir} from 'node:fs/promises';
 import {chromium,expect} from '@playwright/test';
 const out=new URL('../dist/',import.meta.url);
-const allowed=['assets','.nojekyll','index.html','styles.css','app.mjs','art.mjs','state.mjs','engine.mjs','demo-data.mjs'];
+const allowed=['assets','.nojekyll','index.html','styles.css','app.mjs','art.mjs','state.mjs','engine.mjs','nutrition.mjs','nutrition-data.mjs','demo-data.mjs'];
 assert.deepEqual((await readdir(out)).sort(),[...allowed].sort());
 // Compare against the locally configured secret without ever printing it.
 const env=await readFile(new URL('../.env',import.meta.url),'utf8').catch(()=>'');
@@ -14,7 +14,7 @@ if(!url){
  server=http.createServer(async(req,res)=>{try{
   const prefix='/mcd-bujiejie/';const path=new URL(req.url,'http://localhost').pathname;
   const name=path.startsWith(prefix)?path.slice(prefix.length)||'index.html':'';
-  if(!allowed.includes(name)&&!/^assets\/(brand-mark-v3|meal-hero|food-(burger|chicken|fish|fries|nuggets|pie|cola|tea|coffee|juice))\.webp$/.test(name)){res.writeHead(404);return res.end();}
+  if(!allowed.includes(name)&&!/^assets\/(brand-mark-v3|meal-hero|food-(burger|chicken|fish|fries|nuggets|pie|corn|cola|tea|coffee|juice))\.webp$/.test(name)){res.writeHead(404);return res.end();}
   const type=name.endsWith('.webp')?'image/webp':name.endsWith('.mjs')?'text/javascript':name.endsWith('.css')?'text/css':'text/html';
   res.writeHead(200,{'content-type':type});res.end(await readFile(new URL(name,out)));
  }catch{res.writeHead(500);res.end();}});
@@ -32,8 +32,12 @@ try{
  const first=await page.locator('.item-name').allTextContents();await page.getByRole('button',{name:'锁定饮品',exact:true}).click();await page.getByRole('button',{name:'换一份',exact:true}).click();
  await expect.poll(()=>page.locator('.item-name').allTextContents()).not.toEqual(first);const next=await page.locator('.item-name').allTextContents();assert.equal(next[2],first[2]);assert.notDeepEqual(first,next);assert(Number(await page.locator('#total').getAttribute('data-cents'))<=3000);
  await page.getByRole('button',{name:'修改预算',exact:true}).click();await expect(page.locator('.decision')).toBeVisible();await page.getByRole('button',{name:'跳过预算',exact:true}).click();await page.getByRole('button',{name:'抽个好吃的',exact:true}).click();await expect(page.locator('.meal-item')).toHaveCount(3);
+ for(const [style,min,max,protein] of [['减脂餐',400,600,25],['健身餐',550,800,35]]){
+  await page.getByRole('button',{name:'修改预算',exact:true}).click();await page.getByRole('button',{name:style,exact:true}).click();await page.getByRole('button',{name:'预算 30 元',exact:true}).click();await page.getByRole('button',{name:'抽个好吃的',exact:true}).click();await expect(page.locator('#result')).toBeVisible();
+  const kcal=Number(await page.locator('#meal-kcal').textContent());assert(kcal>=min&&kcal<=max);assert(Number(await page.locator('#meal-protein').textContent())>=protein);assert(Number(await page.locator('#total').getAttribute('data-cents'))<=3000);
+ }
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile layout overflow');
  await page.screenshot({path:'.local/screenshots/public-demo-mobile.png',fullPage:true});
  assert.deepEqual(errors,[]);assert.deepEqual(apis,[]);
- console.log(JSON.stringify({url,passed:['public demo','result replaces setup','edit budget','30 yuan budget','locked drink','different reroll','skip budget','390px layout','no backend requests','allowlist and secret scan']}));
+ console.log(JSON.stringify({url,passed:['public demo','three meal styles and nutrition','result replaces setup','edit budget','30 yuan budget','locked drink','different reroll','skip budget','390px layout','no backend requests','allowlist and secret scan']}));
 }finally{await browser.close();if(server)await new Promise(r=>server.close(r));}

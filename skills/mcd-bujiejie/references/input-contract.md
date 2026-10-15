@@ -32,3 +32,7 @@
 ## 显式演示
 
 输入 `action=demo`、`catalog.source=demo` 和预算，返回带 `mode=demo` 的结果。该功能不能冒充官方结果。
+
+## 餐型与营养匹配
+
+candidates、verify、demo 支持 mealStyle=joy/lean/fit，缺省 joy；verify 未指定时继承候选餐型。name 需保留准确的产品及份量，例如“玉米杯（小）”“麦乐鸡（5块）”；“可口可乐”未明确份量时不参与营养筛选。对于有配料变化或无法确认与标准配方一致的商品，传 nutritionEligible=false。不要自行填热量或蛋白质：脚本从附带官方参考计算，字段缺失不是 0。输出的 mealStyles.ids 表示当前菜单可提供的餐型；verify 会重新计算其营养约束。

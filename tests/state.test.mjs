@@ -12,3 +12,8 @@ test('旧请求不能覆盖新预算或模式的结果',()=>{
 test('请求失败保留旧结果但明确标记价格未更新',()=>{
  const s=applyFailure({...initialState(),meal:{key:'old'}},0,'超时');assert.equal(s.stale,true);assert.equal(s.error,'超时');assert.equal(s.meal.key,'old');
 });
+test('切换餐型会清空旧锁定和草稿，晚到的旧餐型结果不能覆盖',()=>{
+ const before={...initialState(),meal:{key:'old'},draftId:'old-draft',locks:['a'],busy:true};
+ const next=changeCondition(before,{mealStyle:'fit'});assert.equal(next.mealStyle,'fit');assert.equal(next.meal,null);assert.equal(next.draftId,null);assert.deepEqual(next.locks,[]);
+ assert.equal(applyResponse(next,before.revision,{meal:{key:'wrong-goal'}}),next);
+});

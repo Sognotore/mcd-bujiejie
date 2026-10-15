@@ -1,7 +1,7 @@
 import {CheckoutService} from './checkout.mjs';
 import http from 'node:http';import {readFile} from 'node:fs/promises';
-import {MealError,recommend,publicMeal,parseBudget} from '../domain/engine.mjs';import {demoCatalog} from '../providers/demo.mjs';import {McdProvider} from '../providers/mcd-adapter.mjs';
-const assets={'/demo-data.mjs':['../src/providers/demo.mjs','text/javascript; charset=utf-8'],'/engine.mjs':['../src/domain/engine.mjs','text/javascript; charset=utf-8'],'/':['index.html','text/html; charset=utf-8'],'/index.html':['index.html','text/html; charset=utf-8'],'/styles.css':['styles.css','text/css; charset=utf-8'],'/app.mjs':['app.mjs','text/javascript; charset=utf-8'],'/art.mjs':['art.mjs','text/javascript; charset=utf-8'],'/state.mjs':['state.mjs','text/javascript; charset=utf-8']};
+import {MealError,recommend,publicMeal,parseBudget,parseMealStyle,mealStyleAvailability} from '../domain/engine.mjs';import {demoCatalog} from '../providers/demo.mjs';import {McdProvider} from '../providers/mcd-adapter.mjs';
+const assets={'/nutrition.mjs':['../src/domain/nutrition.mjs','text/javascript; charset=utf-8'],'/nutrition-data.mjs':['../src/domain/nutrition-data.mjs','text/javascript; charset=utf-8'],'/demo-data.mjs':['../src/providers/demo.mjs','text/javascript; charset=utf-8'],'/engine.mjs':['../src/domain/engine.mjs','text/javascript; charset=utf-8'],'/':['index.html','text/html; charset=utf-8'],'/index.html':['index.html','text/html; charset=utf-8'],'/styles.css':['styles.css','text/css; charset=utf-8'],'/app.mjs':['app.mjs','text/javascript; charset=utf-8'],'/art.mjs':['art.mjs','text/javascript; charset=utf-8'],'/state.mjs':['state.mjs','text/javascript; charset=utf-8']};
 const headers={'cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"};
 const json=(res,status,data)=>{res.writeHead(status,{...headers,'content-type':'application/json; charset=utf-8'});res.end(JSON.stringify(data))};
 async function body(req){
@@ -34,17 +34,18 @@ export function createApp({liveProvider=new McdProvider(),publicOrigin=null,sess
     const input=await body(req);if(!provider)throw new MealError('NOT_CONNECTED','尚未配置实时连接，请先体验演示。',503);
     return json(res,200,{stores:await provider.findStores(input)});
    }
-   if(req.method==='POST'&&path==='/api/recommend'){
+   if(req.method==='POST'&&['/api/recommend','/api/meal-styles'].includes(path)){
     const input=await body(req);if(!['demo','live'].includes(input.mode))throw new MealError('INVALID_MODE','请选择演示或实时菜单。');
-    parseBudget(input.budget);
+    parseBudget(input.budget);parseMealStyle(input.mealStyle);
     if(input.mode==='live'&&!provider)throw new MealError('NOT_CONNECTED','尚未配置实时连接，请先体验演示。',503);
     const catalog=input.mode==='demo'?demoCatalog:await provider.catalog(input.store);
-    const result=await recommend({catalog,budget:input.budget,lockedIds:input.lockedIds,previousKey:input.previousKey,quote:input.mode==='live'?c=>provider.quote(c,catalog.store):undefined});
+    if(path==='/api/meal-styles')return json(res,200,{mealStyles:mealStyleAvailability(catalog)});
+    const result=await recommend({catalog,mealStyle:input.mealStyle,budget:input.budget,lockedIds:input.lockedIds,previousKey:input.previousKey,quote:input.mode==='live'?c=>provider.quote(c,catalog.store):undefined});
     return json(res,200,{...result,meal:publicMeal(result.meal),draftId:input.mode==='live'?orderService.draft(result.meal,catalog.store):null,mode:input.mode,store:catalog.store,takeWay:'到店取餐'});
    }
-   const asset=assets[path]??(/^\/assets\/(?:brand-mark-v3|meal-hero|food-(?:burger|chicken|fish|fries|nuggets|pie|cola|tea|coffee|juice))\.webp$/.test(path)?[path.slice(1),'image/webp']:undefined);if((req.method==='GET'||req.method==='HEAD')&&asset){const content=await readFile(new URL('../../web/'+asset[0],import.meta.url));res.writeHead(200,{...headers,'content-type':asset[1]});return res.end(req.method==='HEAD'?undefined:content)}
+   const asset=assets[path]??(/^\/assets\/(?:brand-mark-v3|meal-hero|food-(?:burger|chicken|fish|fries|nuggets|pie|corn|cola|tea|coffee|juice))\.webp$/.test(path)?[path.slice(1),'image/webp']:undefined);if((req.method==='GET'||req.method==='HEAD')&&asset){const content=await readFile(new URL('../../web/'+asset[0],import.meta.url));res.writeHead(200,{...headers,'content-type':asset[1]});return res.end(req.method==='HEAD'?undefined:content)}
    json(res,404,{error:{code:'NOT_FOUND',message:'页面不存在。'}});
-  }catch(e){if(res.headersSent)return res.end();const safe=e instanceof MealError?e:new MealError('INTERNAL','暂时无法完成，请重试。',500);json(res,safe.status,{error:{code:safe.code,message:safe.message}})}
+  }catch(e){if(res.headersSent)return res.end();const safe=e instanceof MealError?e:new MealError('INTERNAL','暂时无法完成，请重试。',500);json(res,safe.status,{error:{code:safe.code,message:safe.message,...(safe.mealStyles?{mealStyles:safe.mealStyles}:{})}})}
  });
  server.requestTimeout=120000;server.headersTimeout=15000;server.on('close',()=>{void liveProvider?.close();void sessions?.close()});return server;
 }

@@ -74,3 +74,12 @@ test('无通知的 schema 变化在短期有效期后也会被发现',async()=>{
  await g.call('query-meals',{storeCode:'1000'});changed=true;time+=5001;
  await assert.rejects(()=>g.call('query-meals',{storeCode:'1000'}),{code:'SCHEMA_CHANGED'});assert.equal(calls,1);
 });
+
+test('支持特调但配料完全保留的官方默认汉堡可匹配营养；去料加量及未知配置不估算',async()=>{
+ const {nutritionForItem}=await import('../src/domain/nutrition.mjs');
+ const entry={code:'double',role:'main',priceCents:2500};
+ const detail={code:'double',name:'双层吉士汉堡',rounds:[],supportModify:true,modification:{items:[{minValues:0,values:[{code:'cheese',name:'吉士',price:0,minQuantity:0,maxQuantity:1,selectedQuantity:1,selectedKey:'yes',unselectedKey:'no'}]}]}};
+ const normal=normalizeSingle(entry,detail);assert.equal(nutritionForItem(normal).proteinG,27);assert(normal.name.endsWith('【可特调】'));
+ for(const quantity of [0,2]){const changed=structuredClone(detail);changed.modification.items[0].values[0].selectedQuantity=quantity;assert.equal(nutritionForItem(normalizeSingle(entry,changed)),null);}
+ const unknown={...detail,modification:undefined};assert.equal(nutritionForItem(normalizeSingle(entry,unknown)),null);
+});

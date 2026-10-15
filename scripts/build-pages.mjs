@@ -4,7 +4,7 @@ const root=new URL('../',import.meta.url),out=new URL('dist/',root);
 // The public bundle contains only this allowlist. No server code or credentials.
 await rm(out,{recursive:true,force:true});await mkdir(out,{recursive:true});
 for(const name of ['styles.css','app.mjs','art.mjs','state.mjs'])await copyFile(new URL(`web/${name}`,root),new URL(name,out));
-await copyFile(new URL('src/domain/engine.mjs',root),new URL('engine.mjs',out));
+for(const name of ['engine.mjs','nutrition.mjs','nutrition-data.mjs'])await copyFile(new URL('src/domain/'+name,root),new URL(name,out));
 await copyFile(new URL('src/providers/demo.mjs',root),new URL('demo-data.mjs',out));
 let html=(await readFile(new URL('web/index.html',root),'utf8')).replace('<html lang="zh-CN">','<html lang="zh-CN" data-runtime="public-demo">');
 await mkdir(new URL('assets/',out),{recursive:true});

@@ -56,3 +56,7 @@
 用户点击确认后才调用 `create-order`，发送 `storeCode`、`beType=1`、`orderType=1`、`takeWayCode`、精确 `items` 与 `needTableware=false`。同草稿及重复请求共享或拒绝已有创建动作，不自动重试不确定的提交。返回金额缺失或与确认金额不一致时保留订单号并停止付款跳转。支付链接只允许官方 HTTPS 生产域名的 `/mcp/scanToPay`，测试环境示例不可作为付款入口。
 
 公共个人会话版接收使用者自己的 Token，只放服务端内存，设置 Secure/HttpOnly/SameSite=Strict 会话 Cookie，30 分钟到期；不读取作者 `.env`，不把门店缓存或账户响应写入共享文件。真实写调用和支付尚未实测；模拟测试不计为官方下单成功。
+
+## 餐型与营养参考
+
+快乐餐、减脂餐与健身餐的价格、可售及下单仍使用上述 MCP 流程。营养参考独立来自[麦当劳中国大陆官网](https://www.mcdonalds.com.cn/nutrition_calculator)，官方参考版本 2025-04；不是新增或假定的 MCP 字段。只有明确对应标准餐品及份量的商品才进入营养筛选，配方改变和未知数据不推算。规则、覆盖与组合不足时收为两类的逻辑见 [nutrition.md](docs/nutrition.md)。

@@ -18,3 +18,11 @@ test('创建结果金额不同于确认金额时保留订单号并阻止付款�
 test('确认页容量清理不能丢失已创建草稿的防重记录',async()=>{const f=fixture();let time=Date.now();f.service.now=()=>time;const id=f.draft();const confirmations=[];for(let i=0;i<24;i++)confirmations.push(await f.service.prepare(id));await f.service.confirm({confirmationId:confirmations[0].confirmationId,takeWayCode:'eat-in'});time+=61000;await f.service.prepare(f.draft());await assert.rejects(()=>f.service.prepare(id),{code:'ORDER_ALREADY_STARTED'});assert.equal(f.calls(),1);});
 
 test('并发另一餐核价期间出现不确定订单，写边界必须再次拦截',async()=>{const f=fixture();const a=await f.service.prepare(f.draft()),b=await f.service.prepare(f.draft());const details=await f.provider.quoteDetails(meal,store);const release=[];f.provider.quoteDetails=()=>new Promise(resolve=>release.push(()=>resolve(details)));let calls=0;f.provider.createOrder=async()=>{calls++;if(calls===1)throw new Error('timeout');return {orderId:'second',orderDetail:{realTotalAmount:'30'},payH5Url:'https://m.mcdchina.net/mcp/scanToPay?orderId=second'}};const first=f.service.confirm({confirmationId:a.confirmationId,takeWayCode:'eat-in'}),second=f.service.confirm({confirmationId:b.confirmationId,takeWayCode:'eat-in'});release[0]();await assert.rejects(()=>first,{code:'ORDER_UNCERTAIN'});release[1]();await assert.rejects(()=>second,{code:'ORDER_UNCERTAIN'});assert.equal(calls,1);});
+
+test('下单确认和订单保留服务端原餐型与营养，客户端修改营养字段无效',async()=>{
+ const {recommend}=await import('../src/domain/engine.mjs');const {demoCatalog}=await import('../src/providers/demo.mjs');
+ const healthy=(await recommend({catalog:demoCatalog,mealStyle:'fit',budget:'30'})).meal;
+ const f=fixture();f.provider.quoteDetails=async candidate=>({quote:{totalCents:3000,feesCents:0,discountCents:0,quotedAt:Date.now()},lines:candidate.items.map(item=>({productCode:item.id,quantity:1})),takeWays:[{code:'eat-in',name:'堂食'}]});
+ const confirmation=await f.service.prepare(f.service.draft(healthy,store));assert.equal(confirmation.meal.mealStyle,'fit');assert(confirmation.meal.nutrition.proteinG>=35);
+ const receipt=await f.service.confirm({confirmationId:confirmation.confirmationId,takeWayCode:'eat-in',mealStyle:'joy',nutrition:{kcal:0,proteinG:999}});assert.equal(receipt.meal.mealStyle,'fit');assert.deepEqual(receipt.meal.nutrition,healthy.nutrition);assert.equal(f.calls(),1);
+});

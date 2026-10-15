@@ -112,3 +112,23 @@ test('下单响应丢失后只查询原订单，不重新创建订单',async({pa
  await page.route('**/api/checkout/prepare',r=>r.fulfill({json:{confirmationId:'confirm-recovered',meal,store,takeWays:[{code:'eat-in',name:'堂食'}]}}));await page.route('**/api/checkout/confirm',r=>{creates++;return r.abort('failed');});
  await page.reload();await page.getByRole('button',{name:'实时点餐',exact:true}).click();await page.getByLabel('城市',{exact:true}).fill('测试市');await page.getByLabel('附近位置',{exact:true}).fill('测试路');await page.getByRole('button',{name:/查找门店/}).click();await page.locator('#store-select').selectOption('1000');await page.getByRole('button',{name:'抽个好吃的',exact:true}).click();await expect(page.locator('#result')).toBeVisible();await page.locator('#checkout-start').click();await page.locator('#checkout-confirm').click();await expect(page.locator('#payment-panel')).toBeVisible();await expect(page.locator('#order-number')).toContainText('order-recovered');await expect(page.locator('#checkout-dialog')).toBeHidden();expect(creates).toBe(1);await expect(page.locator('#checkout-start')).toBeDisabled();
 });
+
+test('三类餐型在手机上可选，整餐营养和预算同时满足，换餐型清空锁定',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await expect(page.getByRole('group',{name:'餐型选择'}).getByRole('button')).toHaveCount(3);
+ await page.getByRole('button',{name:'健身餐',exact:true}).click();await expect(page.locator('#meal-style-hint')).toContainText('35g');
+ await page.getByRole('button',{name:'预算 30 元',exact:true}).click();await page.getByRole('button',{name:'抽个好吃的',exact:true}).click();await expect(page.locator('#result')).toBeVisible();
+ expect(Number(await page.locator('#meal-kcal').textContent())).toBeGreaterThanOrEqual(550);expect(Number(await page.locator('#meal-kcal').textContent())).toBeLessThanOrEqual(800);expect(Number(await page.locator('#meal-protein').textContent())).toBeGreaterThanOrEqual(35);expect(Number(await page.locator('#total').getAttribute('data-cents'))).toBeLessThanOrEqual(3000);
+ await page.getByRole('button',{name:'锁定饮品',exact:true}).click();await page.getByRole('button',{name:'换个餐型',exact:true}).click();await expect(page.locator('#result')).toBeHidden();await expect(page.getByRole('button',{name:'健身餐',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.getByRole('button',{name:'减脂餐',exact:true}).click();await page.getByRole('button',{name:'抽个好吃的',exact:true}).click();await expect(page.locator('#result')).toBeVisible();
+ expect(Number(await page.locator('#meal-kcal').textContent())).toBeGreaterThanOrEqual(400);expect(Number(await page.locator('#meal-kcal').textContent())).toBeLessThanOrEqual(600);expect(Number(await page.locator('#meal-protein').textContent())).toBeGreaterThanOrEqual(25);await expect(page.getByRole('button',{name:'锁定饮品',exact:true})).toHaveAttribute('aria-pressed','false');
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:()=>Promise.reject(new Error('denied'))},configurable:true}));await page.getByRole('button',{name:'复制清单',exact:true}).click();await expect(page.locator('#copy-text')).toHaveValue(/餐型：减脂餐/);await expect(page.locator('#copy-text')).toHaveValue(/营养参考：约 \d+ 大卡/);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('实际门店不足三类时收为两类，原选择不可用时明确提示，不自动抽取',async({page})=>{
+ await page.route('**/api/status',r=>r.fulfill({json:{live:{configured:true}}}));
+ await page.route('**/api/stores',r=>r.fulfill({json:{stores:[{id:'1000',name:'两类测试门店'}]}}));
+ await page.route('**/api/meal-styles',r=>r.fulfill({json:{mealStyles:{ids:['joy','lean'],reason:'当前菜单的可核验搭配较少，先提供两种餐型。'}}}));
+ await page.reload();await page.getByRole('button',{name:'健身餐',exact:true}).click();await page.getByRole('button',{name:'实时点餐',exact:true}).click();await page.getByLabel('城市',{exact:true}).fill('测试市');await page.getByLabel('附近位置',{exact:true}).fill('测试路');await page.getByRole('button',{name:'查找门店',exact:true}).click();await page.locator('#store-select').selectOption('1000');
+ await expect(page.getByRole('button',{name:'健身餐',exact:true})).toBeHidden();await expect(page.getByRole('button',{name:'减脂餐',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'快乐餐',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.locator('#meal-style-note')).toContainText('已切换快乐餐');await expect(page.locator('#result')).toBeHidden();
+});

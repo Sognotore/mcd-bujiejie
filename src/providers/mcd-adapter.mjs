@@ -17,8 +17,17 @@ export function defaultModification(detail){
  return {values};
 }
 const withMod=d=>{const m=defaultModification(d);return m.values.length?{modification:m}:{}};
+// A capability flag does not mean the standard recipe has been changed.
+// Admit editable recipes only when every removable ingredient remains at its
+// single, zero-price default. Missing options, removals and additions stay unknown.
+export function standardNutritionRecipe(detail){
+ const groups=detail.modification?.items;
+ if(!detail.supportModify&&!groups?.length)return true;
+ return Array.isArray(groups)&&groups.length>0&&groups.every(group=>Array.isArray(group.values)&&group.values.length>0&&group.values.every(value=>value.selectedQuantity===1&&value.maxQuantity===1&&value.minQuantity===0&&value.price===0));
+}
+
 const nameFor=d=>d.name+(d.supportModify?'【可特调】':'');
-const artFor=(role,name)=>role==='main'?(/鸡/.test(name)?'chicken':'burger'):role==='side'?(/薯/.test(name)?'fries':'nuggets'):(/咖啡/.test(name)?'coffee':'cola');
+const artFor=(role,name)=>/玉米/.test(name)?'corn':role==='main'?(/鸡/.test(name)?'chicken':'burger'):role==='side'?(/薯/.test(name)?'fries':'nuggets'):(/咖啡/.test(name)?'coffee':'cola');
 export function extractProducts(menu){
  if(!Array.isArray(menu?.categories)||!menu.meals||typeof menu.meals!=='object')invalid();
  const found=new Map();
@@ -42,7 +51,7 @@ export function extractProducts(menu){
 export function normalizeSingle(entry,detail){
  if(detail.code!==entry.code||!detail.name||!Array.isArray(detail.rounds))invalid();
  if(detail.rounds.length)return null; // Multiple-choice products are handled only when all roles can be confirmed.
- return configurationSnapshot({id:entry.code,name:nameFor(detail),role:entry.role,priceCents:entry.priceCents,variantId:'default',available:true,art:artFor(entry.role,detail.name),orderLine:{productCode:entry.code,quantity:1,...withMod(detail)}});
+ return configurationSnapshot({id:entry.code,name:nameFor(detail),role:entry.role,nutritionName:detail.name,nutritionEligible:standardNutritionRecipe(detail),priceCents:entry.priceCents,variantId:'default',available:true,art:artFor(entry.role,detail.name),orderLine:{productCode:entry.code,quantity:1,...withMod(detail)}});
 }
 const roleForRound=name=>/主食|汉堡|肉堡/.test(name)?'main':/小食|薯条/.test(name)?'side':/饮料|饮品/.test(name)?'drink':null;
 function diffCents(choice){
@@ -60,7 +69,7 @@ export function expandBundle(entry,detail){
   const delta=chosen.reduce((n,x)=>n+(x.isDefault===1?0:diffCents(x)),0);
   if(base+delta<=0)continue;
   const id=entry.code+':'+chosen.map(x=>x.code).join(':');
-  const items=chosen.map((x,i)=>({id:x.code,name:nameFor(x),role:groups[i].role,priceCents:0,included:true,variantId:'included',available:true,art:artFor(groups[i].role,x.name)}));
+  const items=chosen.map((x,i)=>({id:x.code,name:nameFor(x),role:groups[i].role,nutritionName:x.name,nutritionEligible:standardNutritionRecipe(x),priceCents:0,included:true,variantId:'included',available:true,art:artFor(groups[i].role,x.name)}));
   const roundList=chosen.map((x,i)=>({round:String(groups[i].round.id),comboItemList:[{code:x.code,quantity:1,...withMod(x)}]}));
   out.push({id,name:detail.name,available:true,priceCents:base+delta,items,orderLine:{productCode:entry.code,quantity:1,roundList}});
   if(out.length>10000)throw new MealError('CATALOG_TOO_LARGE','当前套餐选项过多，暂时无法搭配。',502);
