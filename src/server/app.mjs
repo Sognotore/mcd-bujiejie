@@ -17,9 +17,12 @@ export function createApp({liveProvider=new McdProvider(),publicOrigin=null,sess
   try{
    const port=req.socket.localPort;const hosts=[`127.0.0.1:${port}`,`localhost:${port}`,...(publicOrigin?[new URL(publicOrigin).host]:[])];
    const origins=[...hosts.filter(h=>h.startsWith('127.0.0.1:')||h.startsWith('localhost:')).map(h=>'http://'+h),...(publicOrigin?[publicOrigin]:[])];
-   if(!hosts.includes(req.headers.host)||req.headers['sec-fetch-site']==='cross-site'||(req.headers.origin&&!origins.includes(req.headers.origin)))throw new MealError('ORIGIN_DENIED','此页面只接受本机请求。',403);
-   const session=sessions?.get(req);const provider=sessions?session?.provider:liveProvider;const orderService=sessions?session?.checkout:checkout;
    const path=new URL(req.url,'http://127.0.0.1').pathname;
+   // The shared Pages link may navigate to the public landing page. API calls
+   // still require the same origin; this exception only returns public HTML.
+   const landingNavigation=Boolean(publicOrigin)&&req.method==='GET'&&['/','/index.html'].includes(path)&&req.headers['sec-fetch-mode']==='navigate'&&req.headers['sec-fetch-dest']==='document';
+   if(!hosts.includes(req.headers.host)||(!landingNavigation&&(req.headers['sec-fetch-site']==='cross-site'||(req.headers.origin&&!origins.includes(req.headers.origin)))))throw new MealError('ORIGIN_DENIED','请从当前体验页面操作。',403);
+   const session=sessions?.get(req);const provider=sessions?session?.provider:liveProvider;const orderService=sessions?session?.checkout:checkout;
    if(req.method==='GET'&&path==='/api/status')return json(res,200,{live:sessions?{configured:Boolean(session),authorizationRequired:true,ordering:true,expiresAt:session?.expires}:provider?.status()??{configured:false},order:orderService?.latest()??null});
    if(req.method==='POST'&&path==='/api/session'&&sessions){const input=await body(req);return json(res,200,{live:await sessions.connect(req,res,input.token)});}
    if(req.method==='DELETE'&&path==='/api/session'&&sessions){sessions.disconnect(req,res);return json(res,200,{live:{configured:false,authorizationRequired:true,ordering:true}});}

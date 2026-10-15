@@ -12,3 +12,16 @@ test('公共 API 无默认作者账户，个人 Cookie 无法使用另一人的�
  assert.equal((await post('/api/checkout/prepare',{draftId:recommendation.draftId},b)).status,409);assert.equal((await post('/api/checkout/prepare',{draftId:recommendation.draftId},a)).status,200);
  assert.equal((await post('/api/checkout/confirm',{confirmationId:'x',takeWayCode:'eat-in'},a,'https://evil.example')).status,403);assert.equal((await fetch(url+'/.env')).status,404);
 }));
+
+test('分享页可以顶层跳转公开首页，跨站 API、嵌入和错误 Host 仍拒绝',()=>serve(async({url})=>{
+ const {request}=await import('node:http');
+ // fetch supplies its own sec-fetch-mode; use HTTP to reproduce browser navigation metadata.
+ const visit=(path,headers,method='GET')=>new Promise((resolve,reject)=>{const req=request(url+path,{method,headers},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});req.on('error',reject);req.end();});
+ const navigation={'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+ assert.equal(await visit('/',navigation),200);
+ assert.equal(await visit('/index.html',navigation),200);
+ assert.equal(await visit('/api/status',navigation),403);
+ assert.equal(await visit('/',{...navigation,'sec-fetch-dest':'iframe'}),403);
+ assert.equal(await visit('/api/recommend',navigation,'POST'),403);
+ assert.equal(await visit('/',{...navigation,host:'evil.example'}),403);
+}));
