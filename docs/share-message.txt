@@ -1,0 +1,11 @@
+我参加了麦当劳的开发比赛，做了个「麦麦不纠结」🍔
+
+选个预算，或者直接跳过，抽一顿主食＋小食＋饮品。喜欢的锁住，不喜欢的再抽，解决“今天吃什么”的纠结。
+
+体验一下（演示无需登录，价格仅供体验）：
+https://sognotore.github.io/mcd-bujiejie/?v=3
+
+如果觉得有意思，帮我登录 GitHub，给项目点个 ⭐ Star 支持一下：
+https://github.com/Sognotore/mcd-bujiejie
+
+比赛按项目的公开 Star 数排名，点项目页上方的 Star 即可。谢谢！
