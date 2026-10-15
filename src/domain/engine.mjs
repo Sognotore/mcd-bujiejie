@@ -14,7 +14,7 @@ const isMoney=n=>Number.isSafeInteger(n)&&n>=0;
 const roles=['main','side','drink'];
 const text=v=>typeof v==='string'&&v.length>0&&v.length<=160;
 function validItem(x){
-  return x && text(x.id) && text(x.name) && roles.includes(x.role) && isMoney(x.priceCents) && x.priceCents>0 && text(x.variantId);
+  return x && text(x.id) && text(x.name) && roles.includes(x.role) && isMoney(x.priceCents) && (x.priceCents>0||x.included===true) && text(x.variantId);
 }
 export const candidateKey=items=>items.map(x=>`${encodeURIComponent(x.id)}@${encodeURIComponent(x.variantId)}`).sort().join('|');
 export function buildCandidates(catalog){
@@ -37,7 +37,7 @@ export function buildCandidates(catalog){
     if(!text(bundle.id)||bundleIds.has(bundle.id)||!text(bundle.name)||!isMoney(bundle.priceCents)||bundle.priceCents<=0||!Array.isArray(bundle.items)||bundle.items.length!==3||!bundle.items.every(validItem)||new Set(bundle.items.map(x=>x.role)).size!==3) fail('INVALID_CATALOG','套餐组成或价格无法确认。',502);
     bundleIds.add(bundle.id);
     if(bundle.available!==true) continue;
-    result.push({key:`bundle:${encodeURIComponent(bundle.id)}`,id:bundle.id,name:bundle.name,items:bundle.items,priceCents:bundle.priceCents,lockable:false,kind:'bundle',orderLine:bundle.orderLine});
+    result.push({key:`bundle:${encodeURIComponent(bundle.id)}`,id:bundle.id,name:bundle.name,items:bundle.items,priceCents:bundle.priceCents,lockable:false,kind:'bundle',orderLine:bundle.orderLine,coupon:bundle.coupon});
   }
   return result;
 }
@@ -64,7 +64,8 @@ export async function recommend({catalog,budget=null,lockedIds=[],previousKey=nu
   let candidates=eligibleCandidates(catalog,lockedIds);
   if(!quote) candidates=candidates.filter(x=>budgetCents===null||x.priceCents<=budgetCents);
   if(!candidates.length) fail('BUDGET_TOO_LOW','当前预算下暂时搭不出完整一餐，可以调整预算或跳过。',422);
-  const alternatives=shuffled(candidates.filter(x=>x.key!==previousKey),rng);
+  const others=candidates.filter(x=>x.key!==previousKey);
+  const alternatives=quote&&budgetCents!==null?[...shuffled(others.filter(x=>x.priceCents<=budgetCents),rng),...shuffled(others.filter(x=>x.priceCents>budgetCents),rng)]:shuffled(others,rng);
   const previous=candidates.find(x=>x.key===previousKey);
   const queue=previous?[...alternatives,previous]:alternatives;
   let count=0;
@@ -78,5 +79,5 @@ export async function recommend({catalog,budget=null,lockedIds=[],previousKey=nu
   fail('BUDGET_TOO_LOW','当前预算下暂时搭不出完整一餐，可以调整预算或跳过。',422);
 }
 export function publicMeal(meal){
-  return {key:meal.key,kind:meal.kind,name:meal.name,lockable:meal.lockable,totalCents:meal.totalCents,discountCents:meal.discountCents,feesCents:meal.feesCents,quotedAt:meal.quotedAt,budgetCents:meal.budgetCents,items:meal.items.map(({id,name,role,priceCents,variantId,art})=>({id,name,role,priceCents,variantId,art}))};
+  return {key:meal.key,kind:meal.kind,name:meal.name,lockable:meal.lockable,totalCents:meal.totalCents,discountCents:meal.discountCents,feesCents:meal.feesCents,quotedAt:meal.quotedAt,budgetCents:meal.budgetCents,items:meal.items.map(({id,name,role,priceCents,variantId,art,included})=>({id,name,role,priceCents,variantId,art,included}))};
 }

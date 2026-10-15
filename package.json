@@ -5,7 +5,7 @@
   "type": "module",
   "description": "预算可选的随机一人餐搭配网页与 Skill",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.9.0"
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server/start.mjs",

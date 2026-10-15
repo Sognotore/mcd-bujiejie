@@ -1,0 +1,2 @@
+import {defineConfig} from '@playwright/test';
+export default defineConfig({testDir:'./tests',testMatch:'ui.spec.mjs',fullyParallel:false,workers:1,reporter:'list',use:{baseURL:'http://127.0.0.1:3188',headless:true,viewport:{width:1440,height:1000}},webServer:{command:'node src/server/start.mjs',url:'http://127.0.0.1:3188/api/status',reuseExistingServer:false,env:{PORT:'3188',MCD_MCP_TOKEN:''}}});

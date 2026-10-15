@@ -1,0 +1,4 @@
+interface:
+  display_name: "麦麦不纠结"
+  short_description: "根据可选预算随机搭配一人餐，用官方菜单和价格试算帮你做决定"
+  default_prompt: "使用 $mcd-bujiejie 帮我随机搭配一顿麦当劳，可以设置预算，也可以跳过。"
